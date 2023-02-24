@@ -12,7 +12,7 @@ from matplotlib import collections, colors, transforms
 
 
 from detector import Detector
-import physics
+import physics,cutflow,util, detector
 
 
 
@@ -398,3 +398,262 @@ def drawdet_xy(use_cms=False, axis=None, layer_height_vis=0.2, alpha=0.1):
 # plt.xlim(-50,50)
 # plt.ylim(-1,12)    
 
+
+cut=cutflow.sample_space("")
+
+def plot_truth(event, fig=None, disp_det_view=True, disp_vertex=True, disp_first_hit=False):
+    """
+    Function to plot the truth of one event
+    Tom Ren, 2023.2
+    """
+    # Extract truth information
+    event.ExtractTruthPhysics()
+    
+    # Prepare the canvas
+    if fig is None:
+        fig,axs=plt.subplots(2,2,figsize=(12,9))
+        axs=axs.flatten().tolist()
+    else:
+        axs=fig.axes
+    
+    # Plot tracks
+    existing_labels=[]
+    for track in event.truthTrackList:
+        x = [];y = [];z = []
+        for point in track.pointList:
+            coord_cms = [point.location.x,point.location.y,point.location.z]
+            coord_det = util.coord_cms2det(np.array(coord_cms))
+            
+            x.append(coord_det[0])
+            y.append(coord_det[1])
+            z.append(coord_det[2])
+        
+        # If-else to avoid duplicating lables
+        if track.LabelString() not in existing_labels:
+            axs[0].plot(x, z, color=track.color(),marker=".",linewidth=1,markersize=4,label=track.LabelString())
+            axs[1].plot(y, z, color=track.color(),marker=".",linewidth=1,markersize=4,label=track.LabelString())
+            axs[2].plot(x, y, color=track.color(),marker=".",linewidth=1,markersize=4,label=track.LabelString())
+            existing_labels.append(track.LabelString())
+        else:
+            axs[0].plot(x, z, color=track.color(),marker=".",linewidth=1,markersize=4)
+            axs[1].plot(y, z, color=track.color(),marker=".",linewidth=1,markersize=4)
+            axs[2].plot(x, y, color=track.color(),marker=".",linewidth=1,markersize=4)
+            
+    # Plot vertex
+    if disp_vertex:
+        try:
+            used_gens_inds = np.where(np.array(event.Tree.GenParticle_G4index) != -1)[0]
+            if len(used_gens_inds) != 0:
+                vert_truth = [event.Tree.GenParticle_y[int(used_gens_inds[0])] / 10,
+                                    event.Tree.GenParticle_x[int(used_gens_inds[0])] / 10,
+                                    event.Tree.GenParticle_z[int(used_gens_inds[0])] / 10] # only first since all used
+
+                #truth vertex location
+                vertex_coord_dete = util.coord_cms2det(np.array([vert_truth[0], vert_truth[1], vert_truth[2]]))
+                axs[0].scatter(vertex_coord_dete[0],vertex_coord_dete[2],s=60,marker="*", color="tab:green",alpha=0.5,zorder=100,label="Primary Vertex")
+                axs[1].scatter(vertex_coord_dete[1],vertex_coord_dete[2],s=60,marker="*", color="tab:green",alpha=0.5,zorder=100)
+                axs[2].scatter(vertex_coord_dete[0],vertex_coord_dete[1],s=60,marker="*", color="tab:green",alpha=0.5,zorder=100)            
+        except:
+            pass    
+            
+    if disp_first_hit:
+        first_hit = util.coord_cms2det(np.array([event.Tree.Hit_x[0], event.Tree.Hit_y[0], event.Tree.Hit_z[0]]))
+        axs[0].scatter(first_hit[0],first_hit[2],s=60,marker="x", color="k",alpha=0.5,zorder=100,label="First hit")
+        axs[1].scatter(first_hit[1],first_hit[2],s=60,marker="x", color="k",alpha=0.5,zorder=100)
+        axs[2].scatter(first_hit[0],first_hit[1],s=60,marker="x", color="k",alpha=0.5,zorder=100)
+
+    
+    if disp_det_view:
+        drawdet_xz(axis=axs[0],alpha=0.2)
+        drawdet_xz(axis=axs[1],alpha=0.2)
+        drawdet_xy(axis=axs[2],alpha=0.2)
+            
+    axs[0].set_xlabel("x [m]")
+    axs[0].set_ylabel("z [m]")
+    axs[1].set_xlabel("y [m]")
+    axs[1].set_ylabel("z [m]")
+    axs[2].set_xlabel("x [m]")
+    axs[2].set_ylabel("y [m]")
+    # Put legend in the last grid
+    handles, labels = axs[0].get_legend_handles_labels()
+    fig.legend(handles, labels, loc=(0.52,0.05))
+    axs[3].axis("off")
+    fig.tight_layout()
+    return fig
+
+def get_digi(event, use_cms=True):
+    hits=[]
+    for i in range(len(event.Tree.Digi_x)):
+        hit = np.array([event.Tree.Digi_x[i],event.Tree.Digi_y[i],event.Tree.Digi_z[i]])
+        hit_layer = cut.in_layer(hit[1])
+        hit_uncertainty = np.array(detector.Layer().uncertainty(hit_layer))
+        if not use_cms:
+            hit=util.coord_cms2det(np.array(hit))
+            hit_uncertainty=hit_uncertainty[[2,0,1]]
+        hits.append([hit,hit_uncertainty])
+    return np.array(hits)
+
+def plot_digi(event, inds=None, fig=None, disp_det_view=False):
+    """
+    Function to plot the digitization of one event
+    Tom Ren, 2023.2
+    
+    INPUT:
+    inds: None or list
+        indices of digitized hits to plot. Use None to plot all of them
+    """
+    # Extract digitized hits
+    hits=get_digi(event,use_cms=False)
+    
+    # Prepare the canvas
+    if fig is None:
+        fig,axs=plt.subplots(2,2,figsize=(12,9))
+        axs=axs.flatten().tolist()
+    else:
+        axs=fig.axes    
+        
+    # hits to plot:
+    inds = np.arange(len(hits)) if inds is None else inds
+    
+    # plots hits
+    x,y,z = [],[],[]
+    xe,ye,ze = [],[],[]
+    for i in inds:
+        x.append(hits[i][0][0])
+        y.append(hits[i][0][1])
+        z.append(hits[i][0][2])
+        xe.append(hits[i][1][0])
+        ye.append(hits[i][1][1])
+        ze.append(hits[i][1][2])
+        
+    axs[0].errorbar(x,z,xerr=xe,yerr=ze, fmt=".",capsize=2, color="red", alpha=0.3, label="digitized")
+    axs[1].errorbar(y,z,xerr=ye,yerr=ze, fmt=".",capsize=2, color="red", alpha=0.3, label="digitized")
+    axs[2].errorbar(x,y,xerr=xe,yerr=ye, fmt=".",capsize=2, color="red", alpha=0.3, label="digitized")
+    
+    if disp_det_view:
+        drawdet_xz(axis=axs[0],alpha=0.2)
+        drawdet_xz(axis=axs[1],alpha=0.2)
+        drawdet_xy(axis=axs[2],alpha=0.2) 
+    
+    axs[0].set_xlabel("x [m]")
+    axs[0].set_ylabel("z [m]")
+    axs[1].set_xlabel("y [m]")
+    axs[1].set_ylabel("z [m]")
+    axs[2].set_xlabel("x [m]")
+    axs[2].set_ylabel("y [m]")
+    # Put legend in the last grid
+    handles, labels = axs[0].get_legend_handles_labels()
+    fig.legend(handles, labels, loc=(0.52,0.05))
+    axs[3].axis("off")
+    fig.tight_layout()
+    return fig
+
+def plot_recon(event, fig=None, disp_det_view=False, disp_non_vertex_tracks=True,
+              disp_unused_hits=True, disp_recon_vertex=True):
+    """
+    Function to plot the digitization of one event
+    Tom Ren, 2023.2
+    
+    INPUT:
+    """
+    # Extract reconstruction info
+    event_vis = event.get_recon_kalman()
+    
+    # Prepare the canvas
+    if fig is None:
+        fig,axs=plt.subplots(2,2,figsize=(12,9))
+        axs=axs.flatten().tolist()
+    else:
+        axs=fig.axes         
+        
+    key1s = ["track","track_nonvertex"]
+    key2s = ["hit","hit_nonvertex"]
+    if disp_non_vertex_tracks:
+        loop_range = 2
+    else:
+        loop_range = 1
+        
+    # Loop both tracks used in vertex and non-vertex tracks
+    for ikey in range(loop_range):
+        # Plot reconstructed tracks
+        name_append="" if ikey==0 else "(non vertex)"
+        for i_track in range(len(event_vis[key1s[ikey]])):
+            # Read the reconstructed track
+            track=event_vis[key1s[ikey]][i_track]
+            track=util.coord_cms2det(np.array(track))
+            hits=[[],[],[]]
+            hits_uncertainty=[[],[],[]]
+
+            # Read hits of this track
+            for i_hit in range(len(track[0])):
+                hit=event_vis[key2s[ikey]][i_track][i_hit]
+                hit_layer = cut.in_layer(hit[1])
+                hit_uncertainty = np.array(detector.Layer().uncertainty(hit_layer))
+                hit=util.coord_cms2det(np.array(hit))
+                hit_uncertainty=hit_uncertainty[[2,0,1]]
+                for i in range(3):
+                    hits[i].append(hit[i])
+                    hits_uncertainty[i].append(hit_uncertainty[i])
+            # Plot digi hits of this track
+            label = "Digitized" if i_track==0 else None
+            axs[0].errorbar(hits[0],hits[2],
+                                 xerr=hits_uncertainty[0],yerr=hits_uncertainty[2],
+                                 color="red",capsize=2,ls='none',alpha=0.3, fmt=".", label=label)
+            axs[1].errorbar(hits[1],hits[2],
+                                 xerr=hits_uncertainty[1],yerr=hits_uncertainty[2],
+                                 color="red",capsize=2,ls='none',alpha=0.3, fmt=".")
+            axs[2].errorbar(hits[0],hits[1],
+                                 xerr=hits_uncertainty[0],yerr=hits_uncertainty[1],
+                                 color="red",capsize=2,ls='none',alpha=0.3, fmt=".")        
+            # Plot KF reconstructed track
+            axs[0].plot(track[0],track[2], color="black",linestyle=":", linewidth=1,label=f"Recon track {i_track}{name_append}")
+            axs[1].plot(track[1],track[2], color="black",linestyle=":", linewidth=1,label=f"Recon track {i_track}{name_append}")
+            axs[2].plot(track[0],track[1], color="black",linestyle=":", linewidth=1,label=f"Recon track {i_track}{name_append}") 
+            
+    # Plot vertex
+    if disp_recon_vertex:
+        for ivertex, vertex in enumerate(event_vis["vertex"]):
+            vertex_coord_dete = util.coord_cms2det(np.array(vertex))
+            axs[0].scatter(vertex_coord_dete[0],vertex_coord_dete[2],s=60,marker="*", color="tab:purple",alpha=0.5,zorder=100,label=f"Recon vertex {ivertex}")
+            axs[1].scatter(vertex_coord_dete[1],vertex_coord_dete[2],s=60,marker="*", color="tab:purple",alpha=0.5,zorder=100)
+            axs[2].scatter(vertex_coord_dete[0],vertex_coord_dete[1],s=60,marker="*", color="tab:purple",alpha=0.5,zorder=100)  
+        
+    # Plot unused hits
+    if disp_unused_hits:
+        hits=[[],[],[]]
+        hits_uncertainty=[[],[],[]]
+
+        for i_hit in range(len(event_vis["hit_unused"])):
+            hit=event_vis["hit_unused"][i_hit]
+            hit_layer = cut.in_layer(hit[1])
+            hit_uncertainty = np.array(detector.Layer().uncertainty(hit_layer))
+            hit=util.coord_cms2det(np.array(hit))
+            hit_uncertainty=hit_uncertainty[[2,0,1]]
+            for i in range(3):
+                hits[i].append(hit[i])
+                hits_uncertainty[i].append(hit_uncertainty[i])
+        axs[0].errorbar(hits[0],hits[2],xerr=hits_uncertainty[0],yerr=hits_uncertainty[2],
+                             color="C0",capsize=2,ls='none',alpha=0.3, fmt=".", label="Digitized, unused" )
+        axs[1].errorbar(hits[1],hits[2],xerr=hits_uncertainty[1],yerr=hits_uncertainty[2],
+                             color="C0",capsize=2,ls='none',alpha=0.3, fmt=".")
+        axs[2].errorbar(hits[0],hits[1],xerr=hits_uncertainty[0],yerr=hits_uncertainty[1],
+                             color="C0",capsize=2,ls='none',alpha=0.3, fmt=".")      
+        
+    if disp_det_view:
+        drawdet_xz(axis=axs[0],alpha=0.2)
+        drawdet_xz(axis=axs[1],alpha=0.2)
+        drawdet_xy(axis=axs[2],alpha=0.2) 
+    
+    axs[0].set_xlabel("x [m]")
+    axs[0].set_ylabel("z [m]")
+    axs[1].set_xlabel("y [m]")
+    axs[1].set_ylabel("z [m]")
+    axs[2].set_xlabel("x [m]")
+    axs[2].set_ylabel("y [m]")
+    # Put legend in the last grid
+    handles, labels = axs[0].get_legend_handles_labels()
+    fig.legend(handles, labels, loc=(0.52,0.05))
+    axs[3].axis("off")
+    fig.tight_layout()
+    return fig    
+    

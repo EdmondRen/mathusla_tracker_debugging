@@ -13,6 +13,8 @@ def colorMap(pdg):
         return "g"
     if (pdg == -11):
         return "m"
+    if (pdg == 211):
+        return "b"    
     return "y"   
 
 
@@ -140,6 +142,14 @@ class Track:
             return "e-"
         if pdg == -11:
             return "e+"
+        if pdg == 211:
+            return "pi+" 
+        if pdg == -211:
+            return "pi-"
+        if pdg == 2112:
+            return "n"         
+        if pdg == 2212:
+            return "p"         
         return "pdg: " + str(pdg)# + ", " + + str(round(self.pointList[0].energy, 2)) + "MeV"
 
     def LabelString(self):
