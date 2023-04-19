@@ -5,15 +5,15 @@ c = 29.98
 
 
 def colorMap(pdg):
-    if (pdg == 13):
+    if (pdg == 13): # mu-
         return "c"
-    if (pdg == -13):
+    if (pdg == -13): # mu+
         return "c" 
-    if (pdg == 11):
+    if (pdg == 11): # e-
         return "g"
-    if (pdg == -11):
+    if (pdg == -11): # e+
         return "m"
-    if (pdg == 211):
+    if (pdg == 211): # pion
         return "b"    
     return "y"   
 

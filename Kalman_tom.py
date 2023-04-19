@@ -5,7 +5,7 @@ class KalmanFilter():
     """
     This class define the Core algorithm of Kalman filter (RTS smoothing)
     """
-    def __init__(self, X0, P0, M0, H=None):
+    def __init__(self, X0, P0, M0, H=None, R0=None):
         # States
         self.M_measurements=[]
         self.X_predicted=[]
@@ -34,15 +34,23 @@ class KalmanFilter():
         self.M_measurements.append(M0)
         if H is not None:
             self.H_s.append(H)
+        if R0 is not None:
+            self.R_s.append(R0)
+        else:
+            self.R_s.append(np.diag(np.ones_like(M0)))
+            
         
     # A): Forward Recursion
-    def predict_foward(self, A, Q, X_previous=None, P=None):
+    def predict_foward(self, A, Q, X_previous=None, P=None, f=None):
         if X_previous is None:
             X_previous=self.X_filtered[-1]
         if P is None:
             P = self.P_filtered[-1]
-                
-        X_predicted = A.dot(X_previous)
+        
+        if f is None: # if linear
+            X_predicted = A.dot(X_previous)
+        else:
+            X_predicted = f(X_previous)
         P_predicted = A.dot(P).dot(A.T) + Q
         
         self.X_predicted.append(X_predicted)
@@ -76,6 +84,7 @@ class KalmanFilter():
         self.P_filtered.append(P_filtered)
         self.K_s.append(K)
         self.M_measurements.append(M_measure)
+        self.R_s.append(R)
 
         return X_filtered, P_filtered
 

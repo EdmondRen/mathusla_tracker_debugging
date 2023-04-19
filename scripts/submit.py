@@ -10,7 +10,7 @@ import importlib
 def insert (source_str, insert_str, pos):
     return source_str[:pos]+insert_str+source_str[pos:]
 
-def submit_script(script, series, blockidx, hours, log_dir, job_name="reco", system="lsf", slurm_account="", slurm_partition="", debug=True, verbose=False):
+def submit_script(script, series, blockidx, hours, log_dir, cores=1, job_name="reco", system="lsf", slurm_account="", slurm_partition="", debug=True, verbose=False):
     if system=="lsf":
         #bsub_command = f"bsub -W {hours}:00 -o {log_dir}/{series}_{blockidx}.out -e {log_dir}/{series}_{blockidx}.err"
         #full_command = f"{bsub_command} {script}"
@@ -41,7 +41,7 @@ source /cvmfs/cdms.opensciencegrid.org/setup_cdms.sh V04-03
 #SBATCH --error={log_dir}/{series}_{blockidx}.err
 #
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=1
+#SBATCH --cpus-per-task={cores}
 #SBATCH --mem-per-cpu=4g
 #
 #SBATCH --time={hours}:00:00

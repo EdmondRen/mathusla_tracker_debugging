@@ -1050,3 +1050,12 @@ class Utils:
 
         return x, y, param_values, param_errors
     
+    
+def pull(x_measure, x_truth, x_unc):
+    return (x_measure-x_truth)/x_unc
+
+def poissonerror_div(N1,N2):
+    return np.sqrt(1/N1+1/N2)*N1/N2
+
+def chi2_calc(x_est, x_true, err):
+    return sum([(x_est[i]-x_true[i])**2/err[i]**2 for i in range(len(err))])

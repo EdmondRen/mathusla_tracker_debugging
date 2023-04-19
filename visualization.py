@@ -548,6 +548,21 @@ def plot_digi(event, inds=None, fig=None, disp_det_view=False):
     fig.tight_layout()
     return fig
 
+linestyle_tuple = [
+     (0, (1, 1)),
+     (0, (5, 1)),
+     (0, (3, 1, 1, 1)),
+     (0, (3, 1, 1, 1, 1, 1)),
+     (0, (1, 4)),
+     (0, (5, 5)),
+     (0, (3, 5, 1, 5)),
+     (0, (3, 5, 1, 5, 1, 5)),
+     (0, (1, 8)),
+     (5, (10, 3)),
+     (0, (5, 10)),
+     (0, (3, 10, 1, 10)),
+     (0, (3, 10, 1, 10, 1, 10))]
+
 def plot_recon(event, fig=None, disp_det_view=False, disp_non_vertex_tracks=True,
               disp_unused_hits=True, disp_recon_vertex=True):
     """
@@ -606,9 +621,9 @@ def plot_recon(event, fig=None, disp_det_view=False, disp_non_vertex_tracks=True
                                  xerr=hits_uncertainty[0],yerr=hits_uncertainty[1],
                                  color="red",capsize=2,ls='none',alpha=0.3, fmt=".")        
             # Plot KF reconstructed track
-            axs[0].plot(track[0],track[2], color="black",linestyle=":", linewidth=1,label=f"Recon track {i_track}{name_append}")
-            axs[1].plot(track[1],track[2], color="black",linestyle=":", linewidth=1,label=f"Recon track {i_track}{name_append}")
-            axs[2].plot(track[0],track[1], color="black",linestyle=":", linewidth=1,label=f"Recon track {i_track}{name_append}") 
+            axs[0].plot(track[0],track[2], color="black",linestyle=linestyle_tuple[i_track%13], linewidth=1,label=f"Recon track {i_track}{name_append}")
+            axs[1].plot(track[1],track[2], color="black",linestyle=linestyle_tuple[i_track%13], linewidth=1,label=f"Recon track {i_track}{name_append}")
+            axs[2].plot(track[0],track[1], color="black",linestyle=linestyle_tuple[i_track%13], linewidth=1,label=f"Recon track {i_track}{name_append}") 
             
     # Plot vertex
     if disp_recon_vertex:

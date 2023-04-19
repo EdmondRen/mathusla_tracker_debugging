@@ -1,10 +1,11 @@
+from tqdm import tqdm
 import iminuit
 from iminuit import Minuit, cost
 import numpy as np
 import scipy as sp
 
 
-import cutflow,detector
+import cutflow,detector,event,util
 cut=cutflow.sample_space("")
 det=detector.Detector()
 
@@ -121,3 +122,124 @@ def fit_track_scipy(hits, guess):
     res = sp.optimize.minimize(ls, x0=guess_no_y,method="powell",bounds=bounds)  
     
     return res
+
+
+def do_ls(filename, nfit=None):
+    # tfile = root.TFile.Open(filename)
+    # Tree = tfile.Get("integral_tree")
+    
+    ev = event.Event(filename, 0, tree_name="integral_tree")
+    Tree=ev.Tree
+    cut=cutflow.sample_space("")
+    nevents = int(Tree.GetEntries())    
+
+    truth=[]
+    truth_nlayer=[]
+    
+    recon=[]
+    recon_unc=[]
+    recon_ls=[]
+    recon_ls_unc=[]
+    
+    ndigi_total=[]
+    ndigi_track=[]
+    ndigi_inds=[]
+    ntracks=[]
+    mask_recon_success=[]
+    
+    if nfit is None:
+        nfit=nevents
+    for Entry in tqdm(range(nfit)):
+    # for Entry in range(40):
+        #Tree.GetEntry(Entry)
+        ev.EventNumber=Entry
+        ev.Tree.GetEntry(Entry)
+        hits = get_digi_hits(ev)
+                
+        # Get truth (speed need to be calculated by hand)
+        try:
+            # Truth position and speed
+            dt=Tree.Hit_time[1]-Tree.Hit_time[0]
+            vx=(Tree.Hit_x[1]-Tree.Hit_x[0])/dt
+            vy=(Tree.Hit_y[1]-Tree.Hit_y[0])/dt
+            vz=(Tree.Hit_z[1]-Tree.Hit_z[0])/dt
+            truth.append([Tree.Hit_z[0], Tree.Hit_x[0], Tree.Hit_y[0], Tree.Hit_time[0],vz,vx,vy])  
+            
+            # Truth number of layer the first partical goes through
+            pdgids = np.array([Tree.Hit_particlePdgId[i] for i in range(len(Tree.Hit_particlePdgId))])
+            ind_lasthit = int(np.argmax(pdgids!=pdgids[0]))-1
+            y_lasthit = Tree.Hit_y[ind_lasthit]
+            y_layer = cut.in_layer(y_lasthit)
+            truth_nlayer.append(y_layer)      
+            
+        except:
+            truth.append([-9999, -9999, -9999, -9999, -9999, -9999, -9999])
+            truth_nlayer.append(-9999)
+           
+            
+        
+        # If there is reconstruction:
+        if len(Tree.Track_k_m_z0)==0:
+            recon.append([-9990, -9990, -9990, -9990, -9990, -9990, -9990])
+            recon_unc.append([-9990, -9990, -9990, -9990, -9990, -9990, -9990])
+            recon_ls.append([-9990, -9990, -9990, -9990, -9990, -9990, -9990])
+            recon_ls_unc.append([-9990, -9990, -9990, -9990, -9990, -9990, -9990])            
+            ndigi_total.append(-9999)
+            ndigi_track.append(-9999)
+            ndigi_inds.append([-9999])
+            ntracks.append(-9999)
+            mask_recon_success.append(False)
+        else:
+            # Check which one is closest to truth
+            track_digi_hit_inds = util.unzip(Tree.Track_k_m_hitIndices)
+            track_digi_hit_len = np.array([len(i) for i in track_digi_hit_inds])
+            track_chi2s = []
+            
+            if len(track_digi_hit_inds)>1:
+                for track_ind in range(len(track_digi_hit_inds)):
+                    recon_i = [Tree.Track_k_m_z0[track_ind], Tree.Track_k_m_x0[track_ind], Tree.Track_k_m_y0[track_ind], Tree.Track_k_m_t0[track_ind],Tree.Track_k_m_velZ[track_ind], Tree.Track_k_m_velX[track_ind], Tree.Track_k_m_velY[track_ind]]
+                    recon_i_unc = [Tree.Track_k_m_ErrorZ0[track_ind], Tree.Track_k_m_ErrorX0[track_ind], Tree.Track_k_m_ErrorY0[track_ind], Tree.Track_k_m_ErrorT0[track_ind],Tree.Track_k_m_ErrorVz[track_ind], Tree.Track_k_m_ErrorVx[track_ind], Tree.Track_k_m_ErrorVy[track_ind]]
+                    chi2 = util.chi2_calc(recon_i,truth[-1],recon_i_unc)
+                    track_chi2s.append(chi2)
+                #     print("s")
+                #     print(track_chi2s)
+                track_ind = int(np.argmin(track_chi2s))
+            else:
+                track_ind=0
+            recon_i = [Tree.Track_k_m_z0[track_ind], Tree.Track_k_m_x0[track_ind], Tree.Track_k_m_y0[track_ind], Tree.Track_k_m_t0[track_ind],Tree.Track_k_m_velZ[track_ind], Tree.Track_k_m_velX[track_ind], Tree.Track_k_m_velY[track_ind]]
+            recon_i_unc = [Tree.Track_k_m_ErrorZ0[track_ind], Tree.Track_k_m_ErrorX0[track_ind], Tree.Track_k_m_ErrorY0[track_ind], Tree.Track_k_m_ErrorT0[track_ind],Tree.Track_k_m_ErrorVz[track_ind], Tree.Track_k_m_ErrorVx[track_ind], Tree.Track_k_m_ErrorVy[track_ind]]
+            
+            recon.append(recon_i)
+            recon_unc.append(recon_i_unc)
+            ndigi_total.append(len(Tree.Digi_x))
+            ndigi_track.append(track_digi_hit_len[track_ind])
+            ndigi_inds.append(track_digi_hit_inds[track_ind])
+            ntracks.append(len(track_digi_hit_inds))
+            mask_recon_success.append(True)                
+            
+            
+            # Do LS fit
+            hits_fit=np.array(hits)[track_digi_hit_inds[track_ind]]
+            guess=guess_track(hits_fit)
+            fit1=fit_track(hits_fit,guess)
+            par_fit=np.array(list(fit1.values))
+            par_fit_error=np.array(list(fit1.errors))
+            # Save results
+            recon_ls.append(par_fit[[2,0,1,3,6,4,5]])
+            recon_ls_unc.append(par_fit_error[[2,0,1,3,6,4,5]])
+            
+                
+    results={
+        "truth":np.array(truth),
+        "truth_nlayer":np.array(truth_nlayer),
+        "recon":np.array(recon),
+        "recon_unc":np.array(recon_unc),
+        "recon_ls":np.array(recon_ls),
+        "recon_ls_unc":np.array(recon_ls_unc),        
+        "ndigi_total":np.array(ndigi_total),
+        "ndigi_track":np.array(ndigi_track),
+        "ndigi_inds":np.array(ndigi_inds),
+        "mask_recon_success":np.array(mask_recon_success)
+    }
+    
+    return results
