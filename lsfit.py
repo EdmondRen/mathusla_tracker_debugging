@@ -243,3 +243,59 @@ def do_ls(filename, nfit=None):
     }
     
     return results
+
+
+
+def get_km(filename, results_fit, tree_name="integral_tree"):
+    results_fit["par_km"]=[]
+    results_fit["par_km_error"]=[]
+    results_fit["par_km_truth"]=[]
+    results_fit["par_km_ndigi"]=[]
+    results_fit["par_km_ndigitrack"]=[]
+    results_fit["par_km_chi2"]=[]
+    
+    ev = event.Event(filename, 0, tree_name=tree_name)
+    nevents = int(ev.Tree.GetEntries())
+    cut=cutflow.sample_space("")
+
+
+    for i_event in tqdm(range(nevents)):
+        ev.EventNumber=i_event
+        ev.Tree.GetEntry(i_event)
+
+        hits = get_digi_hits(ev)
+        nhits=len(ev.Tree.Hit_x)
+        
+        # Use Try to only process events with kalman reconstruction
+        try:
+            digi_hit_inds = util.unzip(ev.Tree.Track_k_m_hitIndices)
+            digi_hit_len = np.array([len(i) for i in digi_hit_inds])
+            track_ind = int(np.argmax(digi_hit_len==7))
+            track_hits_inds=digi_hit_inds[track_ind]   
+            hits_fit=np.array(hits)[track_hits_inds]
+        
+            par_km =[ev.Tree.Track_k_m_x0[track_ind], ev.Tree.Track_k_m_y0[track_ind], ev.Tree.Track_k_m_z0[track_ind], ev.Tree.Track_k_m_t0[track_ind], ev.Tree.Track_k_m_velX[track_ind], ev.Tree.Track_k_m_velY[track_ind], ev.Tree.Track_k_m_velZ[track_ind]]
+            par_km_error =[ev.Tree.Track_k_m_ErrorX0[track_ind], ev.Tree.Track_k_m_ErrorY0[track_ind], ev.Tree.Track_k_m_ErrorZ0[track_ind], ev.Tree.Track_k_m_ErrorT0[track_ind], ev.Tree.Track_k_m_ErrorVx[track_ind], ev.Tree.Track_k_m_ErrorVy[track_ind], ev.Tree.Track_k_m_ErrorVz[track_ind]]
+            xyz0_km = util.coord_cms2det(np.array(par_km[:3]))
+            xyzV_km = np.array([par_km_error[2+4],par_km_error[0+4],-par_km_error[1+4]])
+            
+        except:
+            continue    
+        results_fit["par_km"].append(par_km)
+        results_fit["par_km_error"].append(par_km_error)
+        results_fit["par_km_ndigi"].append(len(ev.Tree.Digi_x))
+        results_fit["par_km_ndigitrack"].append(digi_hit_len[track_ind])
+        results_fit["par_km_chi2"].append(ev.Tree.Track_k_m_smooth_chi_sum[track_ind])
+        
+        Tree=ev.Tree
+        dt=Tree.Hit_time[1]-Tree.Hit_time[0]
+        vx=(Tree.Hit_x[1]-Tree.Hit_x[0])/dt
+        vy=(Tree.Hit_y[1]-Tree.Hit_y[0])/dt
+        vz=(Tree.Hit_z[1]-Tree.Hit_z[0])/dt
+        par_truth = [Tree.Hit_x[0], Tree.Hit_y[0], Tree.Hit_z[0], Tree.Hit_time[0],vx,vy,vz]
+        results_fit["par_km_truth"].append(par_truth)        
+        
+    # results_fit["par_km"]=np.array(results_fit["par_km"])
+    # results_fit["par_km_error"]=np.array(results_fit["par_km_error"])
+    for key in results_fit:
+        results_fit[key]=np.array(results_fit[key])

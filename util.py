@@ -40,6 +40,7 @@ import ROOT as root
 from root_numpy import array2tree
 
 
+
 def GetFilesInDir(base_dir, postfix=".root"):
     if not (os.path.isdir(base_dir)):
         print("bad directory")
@@ -1059,3 +1060,5 @@ def poissonerror_div(N1,N2):
 
 def chi2_calc(x_est, x_true, err):
     return sum([(x_est[i]-x_true[i])**2/err[i]**2 for i in range(len(err))])
+
+

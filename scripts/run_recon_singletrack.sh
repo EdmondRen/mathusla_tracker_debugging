@@ -1,6 +1,7 @@
 # EnergyList=(1000)
-#EnergyList=(0.5 1 3 10 50 1000)
-EnergyList=(100)
+EnergyList=(0.5 1 3 10 50 1000)
+EnergyList2=(0.5 1 3 10 100)
+#EnergyList=(100)
 
 EventCount=200
 TrackerRuns=200
@@ -44,10 +45,20 @@ do
 #     fi
 #   done
   
-  for f in ${DataDir}/pion_${energy}_GeV/*/*/run*.root; do
+  for f in ${DataDir}/muon_${energy}_GeV/*/*/run*.root; do
     ${tracker} $f `dirname ${f}`
     #Rename the output for a unique index
     mv `dirname ${f}`/stat0.root `dirname ${f}`/stat_seedmod.root -f
   done  
   
+done
+
+for energy in ${EnergyList2[@]}
+do
+  for f in ${DataDir}/pion_${energy}_GeV/*/*/run*.root; do
+    ${tracker} $f `dirname ${f}`
+    #Rename the output for a unique index
+    mv `dirname ${f}`/stat0.root `dirname ${f}`/stat_seedmod.root -f
+  done
+
 done

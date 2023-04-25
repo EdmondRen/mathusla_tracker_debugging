@@ -6,6 +6,8 @@
 /vis/filtering/trajectories/chargeFilter-0/verbose false
 /vis/filtering/trajectories/chargeFilter-0/active true
 
+/vis/ogl/set/displayListLimit 1000000
+
 /gen/select range
 
 /gen/range/id 13
